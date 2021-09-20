@@ -1,0 +1,1400 @@
+<?xml version="1.0" encoding="utf-8"?>
+<klayout-macro>
+ <description/>
+ <version/>
+ <category>pymacros</category>
+ <prolog/>
+ <epilog/>
+ <doc/>
+ <autorun>true</autorun>
+ <autorun-early>false</autorun-early>
+ <shortcut/>
+ <show-in-menu>false</show-in-menu>
+ <group-name/>
+ <menu-path/>
+ <interpreter>python</interpreter>
+ <dsl-interpreter-name/>
+ <text>import pya
+import math
+import numpy as np
+
+
+#gap_1 = np.loadtxt('C:/Users/ZXY/KLayout/pymacros/gap_n1_2.txt')*1e6
+#gap_2 = np.loadtxt('C:/Users/ZXY/KLayout/pymacros/gap_n2_2.txt')*1e6
+
+#print(gap_1(0))
+#print(gap_1.shape)
+#print(gap_1[0])
+
+def sin( angle):
+     return round(math.sin(angle)*1e6)/1e6
+def cos(angle):
+     return round(math.cos(angle)*1e6)/1e6
+def tan(angle):
+     return round(math.tan(angle)*1e6)/1e6
+
+class Chirped_SWG_BG_wing(pya.PCellDeclarationHelper):
+  """
+  Input: length, target_period, wg_width, width, duty
+  """
+
+  def __init__(self):
+
+    # Important: initialize the super class
+    super(Chirped_SWG_BG_wing, self).__init__()
+    TECHNOLOGY = get_technology_by_name('EBeam')
+
+    # declare the parameters
+  # self.param("length", self.TypeDouble, "Waveguide length", default = 10.0)
+    self.param("N_period", self.TypeDouble, "Number of period (SWG)", default = 10.0)
+    self.param("SWG_period", self.TypeDouble, "SWG period (microns)", default = 0.245)
+    self.param("wg_width", self.TypeDouble, "Waveguide width", default = 0.4)
+
+    self.param("Wing1_width", self.TypeDouble, "Wing1 width (microns)", default = 0.122)
+    self.param("Wing2_width", self.TypeDouble, "Wing2 width (microns)", default = 0.122)
+    self.param("length_swg", self.TypeDouble, " Length (SWG period*DC (mciron))", default = 0.122)
+
+    self.param("layer", self.TypeLayer, "Layer", default = TECHNOLOGY['Waveguide'])
+    self.param("pinrec", self.TypeLayer, "PinRec Layer", default = TECHNOLOGY['PinRec'])
+    self.param("devrec", self.TypeLayer, "DevRec Layer", default = TECHNOLOGY['DevRec'])
+    self.param("Path_1", self.TypeString, "Path of the gap_1 (n1)",  default = 'C:/Users/ZXY/KLayout/pymacros/gap_n1_2.txt')
+    self.param("Path_2", self.TypeString, "Path of the gap_2  (n2)",  default = 'C:/Users/ZXY/KLayout/pymacros/gap_n2_2.txt')
+
+
+#    self.param("textl", self.TypeLayer, "Text Layer", default = LayerInfo(10, 0))
+
+  #def display_text_impl(self):
+    # Provide a descriptive text for the cell
+   # return "SWG_waveguide_%s-%.3f-%.3f-%.3f" % \
+   # (self.length, self.target_period, self.wg_width, self.duty)
+
+
+  def coerce_parameters_impl(self):
+    pass
+
+  def can_create_from_shape(self, layout, shape, layer):
+    return False
+
+  def produce_impl(self):
+
+    # fetch the parameters
+    dbu = self.layout.dbu
+    ly = self.layout
+    shapes = self.cell.shapes
+
+    LayerSi = self.layer
+    LayerSiN = ly.layer(LayerSi)
+    #LayerSiSPN = ly.layer(LayerSiSP)
+    LayerPinRecN = ly.layer(self.pinrec)
+    LayerDevRecN = ly.layer(self.devrec)
+
+    # Determine the period such that the waveguide length is as desired.  Slight adjustment to period
+   # N_boxes = int(round(self.length / self.target_period-0.5))
+    swg_p = self.SWG_period / dbu
+    n_period = int(self.N_period)
+    n_period_bg = int(round( n_period/2))
+    print("SWG_period: %s" % (swg_p) )
+    gap_1 = np.loadtxt(self.Path_1)*1e6
+    gap_2 = np.loadtxt(self.Path_2)*1e6
+    # Draw the Bragg grating:
+    box_width = self.length_swg / dbu
+
+    w = self.wg_width / dbu
+    half_w = w/2
+    for i in range(0,n_period+1):
+      x =((i * swg_p))
+      box1 = Box(x-box_width/2 , -half_w, x + box_width/2, half_w)
+      shapes(LayerSiN).insert(box1)
+
+    distance_1_array = half_w + gap_1/dbu
+    distance_2_array = half_w + gap_2/dbu
+    wing_width1 = self.Wing1_width/dbu
+    wing_width2 = self.Wing2_width/dbu
+
+    for k in range(0,n_period_bg):
+        distance_1 = distance_1_array[k]
+        x_wing1 =((k * 2 * swg_p))
+        box_wing11 = Box(x_wing1-wing_width1/2, -distance_1 - wing_width1, x_wing1 + wing_width1/2, -distance_1)
+        shapes(LayerSiN).insert(box_wing11)
+        box_wing12 = Box(x_wing1-wing_width1/2, distance_1, x_wing1 +  wing_width1/2, distance_1+wing_width1)
+        shapes(LayerSiN).insert(box_wing12)
+
+        distance_2= distance_2_array[k]
+        x_wing2 = int(round(((k * 2 + 1) * swg_p )))
+        box_wing21 = Box(x_wing2 - wing_width2/2, -distance_2 - wing_width2, x_wing2 +wing_width2/2, -distance_2)
+        shapes(LayerSiN).insert(box_wing21)
+        box_wing22 = Box(x_wing2 - wing_width2/2, distance_2, x_wing2 + wing_width2/2, distance_2+wing_width2)
+        shapes(LayerSiN).insert(box_wing22)
+
+
+
+
+#    i = i + 1
+#    x = int(round((i * grating_period)))
+#    box1 = Box(x, -half_w, x + box_width, half_w)
+#    shapes(LayerSiN).insert(box1)
+    length = swg_p*n_period#+box_width# self.length / dbu
+
+    # Pins on the waveguide:
+    from SiEPIC._globals import PIN_LENGTH as pin_length
+#    pin_length = box_width
+    t = Trans(Trans.R0, 0,0)
+    pin = Path([Point(pin_length/2, 0), Point(-pin_length/2, 0)], w)
+    pin_t = pin.transformed(t)
+    shapes(LayerPinRecN).insert(pin_t)
+    text = Text ("pin1", t)
+    shape = shapes(LayerPinRecN).insert(text)
+    shape.text_size = 0.4/dbu
+
+    t = Trans(Trans.R0, length,0)
+    pin = Path([Point(-pin_length/2, 0), Point(pin_length/2, 0)], w)
+    pin_t = pin.transformed(t)
+    shapes(LayerPinRecN).insert(pin_t)
+    text = Text ("pin2", t)
+    shape = shapes(LayerPinRecN).insert(text)
+    shape.text_size = 0.4/dbu
+    shape.text_halign = 2
+
+    # Compact model information
+    t = Trans(Trans.R0, 0, 0)
+    text = Text ('Lumerical_INTERCONNECT_library=Design kits/ebeam_v1.2', t)
+    shape = shapes(LayerDevRecN).insert(text)
+    shape.text_size = 0.1/dbu
+    t = Trans(Trans.R0, length/10, 0)
+    text = Text ('Component=NO_MODEL_AVAILABLE', t)
+    shape = shapes(LayerDevRecN).insert(text)
+    shape.text_size = 0.1/dbu
+    t = Trans(Trans.R0, length/9, -box_width*2)
+    text = Text \
+    #  ('Spice_param:length=%.3fu target_period=%.3fu grating_period=%.3fu wg_width=%.3fu duty=%.3f ' %\
+   #   (length/10, self.SWG_period, round(swg_p)*dbu, self.wg_width), t ) #self.length_swg
+#    shape = shapes(LayerDevRecN).insert(text)
+   # shape.text_size = 0.1/dbu
+
+    # Create the device recognition layer -- make it 1 * wg_width away from the waveguides.
+    points = [pya.Point(0,0), pya.Point(length, 0)]
+    path = pya.Path(points,w)
+    path = pya.Path(points,w*3)
+    shapes(LayerDevRecN).insert(path.simple_polygon())
+
+class Tilted_SWG_BG_wing(pya.PCellDeclarationHelper):
+  """
+  Input: length, target_period, wg_width, width, duty
+  """
+
+  def __init__(self):
+
+    # Important: initialize the super class
+    super(Tilted_SWG_BG_wing, self).__init__()
+    TECHNOLOGY = get_technology_by_name('EBeam')
+
+    # declare the parameters
+  # self.param("length", self.TypeDouble, "Waveguide length", default = 10.0)
+    self.param("N_period", self.TypeDouble, "Number of period (SWG)", default = 10.0)
+    self.param("SWG_period", self.TypeDouble, "SWG period (microns)", default = 0.200)
+    self.param("wg_width", self.TypeDouble, "Waveguide width", default = 0.5)
+    self.param("duty", self.TypeDouble, "Duty Cycle (0 to 1)", default = 0.5)
+    self.param("theta", self.TypeDouble, "Tilted Angle (deg)", default = 10)
+    self.param("Wing1_width", self.TypeDouble, "Wing1 width (microns)", default = 0.1)
+    self.param("Wing2_width", self.TypeDouble, "Wing2 width (microns)", default = 0.1)
+   # self.param("distance_1", self.TypeDouble, "Distance_1 (microns)", default = 0.1)
+    self.param("distance_2", self.TypeDouble, "Distance_2 (microns)", default = 0.5)
+
+    self.param("layer", self.TypeLayer, "Layer", default = TECHNOLOGY['Waveguide'])
+    self.param("pinrec", self.TypeLayer, "PinRec Layer", default = TECHNOLOGY['PinRec'])
+    self.param("devrec", self.TypeLayer, "DevRec Layer", default = TECHNOLOGY['DevRec'])
+#    self.param("textl", self.TypeLayer, "Text Layer", default = LayerInfo(10, 0))
+
+  #def display_text_impl(self):
+    # Provide a descriptive text for the cell
+   # return "SWG_waveguide_%s-%.3f-%.3f-%.3f" % \
+   # (self.length, self.target_period, self.wg_width, self.duty)
+
+
+  def coerce_parameters_impl(self):
+    pass
+
+  def can_create_from_shape(self, layout, shape, layer):
+    return False
+
+
+
+
+  def produce_impl(self):
+
+    # fetch the parameters
+    dbu = self.layout.dbu
+    ly = self.layout
+    shapes = self.cell.shapes
+
+    LayerSi = self.layer
+    LayerSiN = ly.layer(LayerSi)
+    #LayerSiSPN = ly.layer(LayerSiSP)
+    LayerPinRecN = ly.layer(self.pinrec)
+    LayerDevRecN = ly.layer(self.devrec)
+
+    # Determine the period such that the waveguide length is as desired.  Slight adjustment to period
+   # N_boxes = int(round(self.length / self.target_period-0.5))
+    swg_p = int(round(self.SWG_period / dbu))
+    n_period = int(self.N_period)
+    n_period_bg = int(round( n_period/2))
+    print("SWG_period: %s" % swg_p)
+
+    # Draw the Bragg grating:
+    box_width = int(round(swg_p * self.duty))
+
+    w = self.wg_width / dbu
+    half_w = w/2
+    pi = np.pi
+    angle = math.radians(self.theta)# math.radians(self.theta)#/180*pi
+    print(angle)
+    wing_width2 = self.Wing2_width/dbu
+    distance_2 = self.distance_2/dbu+half_w
+    if angle == 0:
+      for i in range(0,n_period+1):
+        x =i * swg_p
+        box1 = Box(x-box_width/2 , -half_w, x + box_width/2, half_w)
+        shapes(LayerSiN).insert(box1)
+      for k in range(0,n_period_bg):
+        x_wing2 = int(round(((k * 2 + 1) * swg_p )))
+        box_wing21 = Box(x_wing2 - wing_width2/2, -distance_2 - wing_width2, x_wing2 +wing_width2/2, -distance_2)
+        shapes(LayerSiN).insert(box_wing21)
+        box_wing22 = Box(x_wing2 - wing_width2/2, distance_2, x_wing2 + wing_width2/2, distance_2+wing_width2)
+        shapes(LayerSiN).insert(box_wing22)
+    else:
+      l_swg = swg_p * cos(angle) * self.duty
+
+      width_core = (w - l_swg*sin(angle))/cos(angle)
+
+      print(width_core)
+      x_1 = -(width_core/2 + l_swg/2/tan(angle))*sin(angle)
+      y_1 = -w/2 + l_swg*sin(angle)
+
+      x_2 = -(width_core/2 - l_swg/2/tan(angle))*sin(angle)
+      y_2 = -w/2
+
+      x_3 = -x_1
+      y_3 = -y_1
+
+      x_4 = -x_2
+      y_4 = -y_2
+      
+      print("x_1: %s"% x_1)
+      print("y_1: %s"% y_1)
+      print("x_2: %s"% x_2)
+      print("y_2: %s"% y_2)
+      print("x_3: %s"% x_3)
+      print("y_3: %s"% y_3)
+      print("x_4: %s"% x_4)
+      print("y_4: %s"% y_4)
+      for i in range(0,n_period+1):
+              xn_1 = round((x_1 + i*swg_p)*10e2)/10e2
+              xn_2 = round((x_2 + i*swg_p)*10e2)/10e2
+              xn_3 = round((x_3 + i*swg_p)*10e2)/10e2
+              xn_4 = round((x_4 + i*swg_p)*10e2)/10e2
+              dpts = [pya.DPoint(xn_2,y_2), pya.DPoint(xn_1,y_1), pya.DPoint(xn_4,y_4), pya.DPoint(xn_3,y_3)]
+              dpolygon = DPolygon(dpts)
+              print("position: %s"% dpolygon)
+              element = Polygon.from_dpoly(dpolygon*(1/dbu)*dbu)
+              shapes(LayerSiN).insert(element)
+
+      wing_width2 = self.Wing2_width/dbu
+      distance_2 = self.distance_2/dbu+half_w
+      for k in range(0,n_period_bg):
+          x_wing2 = int(round(((k * 2 + 1) * swg_p )))
+          box_wing21 = Box(x_wing2 - wing_width2/2, -distance_2 - wing_width2, x_wing2 +wing_width2/2, -distance_2)
+          shapes(LayerSiN).insert(box_wing21)
+          box_wing22 = Box(x_wing2 - wing_width2/2, distance_2, x_wing2 + wing_width2/2, distance_2+wing_width2)
+          shapes(LayerSiN).insert(box_wing22)
+
+    length = swg_p*n_period
+
+    # Pins on the waveguide:
+    from SiEPIC._globals import PIN_LENGTH as pin_length
+#    pin_length = box_width
+    t = Trans(Trans.R0, 0,0)
+    pin = Path([Point(pin_length/2, 0), Point(-pin_length/2, 0)], w)
+    pin_t = pin.transformed(t)
+    shapes(LayerPinRecN).insert(pin_t)
+    text = Text ("pin1", t)
+    shape = shapes(LayerPinRecN).insert(text)
+    shape.text_size = 0.4/dbu
+
+    t = Trans(Trans.R0, length,0)
+    pin = Path([Point(-pin_length/2, 0), Point(pin_length/2, 0)], w)
+    pin_t = pin.transformed(t)
+    shapes(LayerPinRecN).insert(pin_t)
+    text = Text ("pin2", t)
+    shape = shapes(LayerPinRecN).insert(text)
+    shape.text_size = 0.4/dbu
+    shape.text_halign = 2
+
+    # Compact model information
+    t = Trans(Trans.R0, 0, 0)
+    text = Text ('Lumerical_INTERCONNECT_library=Design kits/ebeam_v1.2', t)
+    shape = shapes(LayerDevRecN).insert(text)
+    shape.text_size = 0.1/dbu
+    t = Trans(Trans.R0, length/10, 0)
+    text = Text ('Component=NO_MODEL_AVAILABLE', t)
+    shape = shapes(LayerDevRecN).insert(text)
+    shape.text_size = 0.1/dbu
+    t = Trans(Trans.R0, length/9, -box_width*2)
+    text = Text \
+      ('Spice_param:length=%.3fu target_period=%.3fu grating_period=%.3fu wg_width=%.3fu duty=%.3f ' %\
+      (length/10, self.SWG_period, round(swg_p)*dbu, self.wg_width, self.duty), t )
+    shape = shapes(LayerDevRecN).insert(text)
+    shape.text_size = 0.1/dbu
+
+    # Create the device recognition layer -- make it 1 * wg_width away from the waveguides.
+    points = [pya.Point(0,0), pya.Point(length, 0)]
+    path = pya.Path(points,w)
+    path = pya.Path(points,w*3)
+    shapes(LayerDevRecN).insert(path.simple_polygon())
+
+
+class Tilted_SWG_to_strip_waveguide(pya.PCellDeclarationHelper):
+  """
+  Input: length, period_strip, period_swg, wg_width_strip, wg_width_swg, duty_strip, duty_swg
+  continuously (linearly) variable period, width, duty along the length
+
+  Updated by Lukas Chrostowski, Leanne Dias, Connor Mosquera 2020/05
+  """
+
+  def __init__(self):
+
+    # Important: initialize the super class
+    super(Tilted_SWG_to_strip_waveguide, self).__init__()
+    TECHNOLOGY = get_technology_by_name('EBeam')
+
+    # declare the parameters
+       # declare the parameters
+  # self.param("length", self.TypeDouble, "Waveguide length", default = 10.0)
+    self.param("N_period", self.TypeDouble, "Number of period", default = 10.0)
+    self.param("SWG_period", self.TypeDouble, "SWG period (microns)", default = 0.256)
+    self.param("wg_width", self.TypeDouble, "Waveguide width (SWG)", default = 0.4)
+    self.param("duty", self.TypeDouble, "Duty Cycle (0 to 1)", default = 0.54)
+    self.param("theta", self.TypeDouble, "Tilted Angle (deg)", default = 10)
+    self.param("Wing1_width", self.TypeDouble, "Wing1 width (microns)", default = 0.128)
+    self.param("Wing2_width", self.TypeDouble, "Wing2 width (microns)", default = 0.128)
+    self.param("wg_width_strip", self.TypeDouble, "Strip Waveguide width at the taper end (microns)", default = 0.4)
+#    self.param("wg_width_swg_taperend", self.TypeDouble, "Waveguide width at SWG taper end (microns)", default = 0.4)
+    self.param("wg_width_taper", self.TypeDouble, "Nanotaper width at taper end (microns)", default = 0.06)
+    self.param("perc", self.TypeDouble, "Strip waveguide percentage (0-1)", default = 0.8)
+
+
+    self.param("layer", self.TypeLayer, "Layer", default = TECHNOLOGY['Waveguide'])
+    self.param("pinrec", self.TypeLayer, "PinRec Layer", default = TECHNOLOGY['PinRec'])
+    self.param("devrec", self.TypeLayer, "DevRec Layer", default = TECHNOLOGY['DevRec'])
+#    self.param("textl", self.TypeLayer, "Text Layer", default = LayerInfo(10, 0))
+
+  #def display_text_impl(self):
+    # Provide a descriptive text for the cell
+   # return "SWG_waveguide_%s-%.3f-%.3f-%.3f" % \
+   # (self.length, self.target_period, self.wg_width, self.duty)
+
+
+  def coerce_parameters_impl(self):
+    pass
+
+  def can_create_from_shape(self, layout, shape, layer):
+    return False
+
+
+
+
+  def produce_impl(self):
+
+    # fetch the parameters
+    dbu = self.layout.dbu
+    ly = self.layout
+    shapes = self.cell.shapes
+
+    LayerSi = self.layer
+    LayerSiN = ly.layer(LayerSi)
+    #LayerSiSPN = ly.layer(LayerSiSP)
+    LayerPinRecN = ly.layer(self.pinrec)
+    LayerDevRecN = ly.layer(self.devrec)
+
+    # Determine the period such that the waveguide length is as desired.  Slight adjustment to period
+   # N_boxes = int(round(self.length / self.target_period-0.5))
+    swg_p = int(round(self.SWG_period / dbu))
+    n_period = int(self.N_period)
+    n_period_bg = int(round( n_period/2))
+    print("SWG_period: %s" % (swg_p) )
+
+    # Draw the Bragg grating:
+    box_width = int(round(swg_p*(self.duty)))
+
+    w = self.wg_width / dbu
+    half_w = w/2
+    pi = np.pi
+    if self.theta == 0:
+      for i in range(0,n_period+1):
+        x =i * swg_p
+        box1 = Box(x-box_width/2 , -half_w, x + box_width/2, half_w)
+        shapes(LayerSiN).insert(box1)
+    else:
+
+      angle_array = np.linspace(0,math.radians(self.theta), n_period+1)# math.radians(self.theta)#/180*pi
+  
+  
+      for i in range(0,n_period+1):
+        angle = angle_array[i]
+  
+        if angle &gt; 0:
+  
+          l_swg =swg_p*cos(angle)*(self.duty)
+  
+          print(l_swg)
+  
+          width_core = (w - l_swg*sin(angle))/cos(angle)
+  
+          print(width_core)
+          x_1 = -(width_core/2 + l_swg/2/tan(angle))*sin(angle)
+          y_1 =-w/2 + l_swg*sin(angle)
+  
+          x_2 = -(width_core/2 - l_swg/2/tan(angle))*sin(angle)
+          y_2 = -w/2
+  
+          x_3 = -x_1
+          y_3 = -y_1
+  
+          x_4 = -x_2
+          y_4 = -y_2
+  
+          dpts=[pya.DPoint(x_1+ i*swg_p,y_1) ,pya.DPoint(x_2+ i*swg_p,y_2) ,pya.DPoint(x_3+ i*swg_p,y_3) ,pya.DPoint(x_4+ i*swg_p,y_4) ]
+          dpolygon = DPolygon(dpts)
+          element = Polygon.from_dpoly(dpolygon*(1/dbu)*dbu)
+          shapes(LayerSiN).insert(element)
+        else:
+  
+          x = int(round(i * swg_p))-box_width/2
+          box1 = Box(x, -half_w, x + box_width, half_w)
+          shapes(LayerSiN).insert(box1)
+
+    length = n_period*swg_p
+    taper_length = length*self.perc
+    w1 = self.wg_width_taper/dbu
+    w2 = self.wg_width_strip/dbu
+    pts = [Point(-box_width/2,-w2/2), Point(-box_width/2,w2/2), Point(taper_length,w1/2), Point(taper_length,-w1/2)]
+    shapes(LayerSiN).insert(Polygon(pts))
+
+
+    length = swg_p*n_period#+box_width# self.length / dbu
+
+    # Pins on the waveguide:
+    from SiEPIC._globals import PIN_LENGTH as pin_length
+#    pin_length = box_width
+    t = Trans(Trans.R0, 0,0)
+    pin = Path([Point(pin_length/2, 0), Point(-pin_length/2, 0)], w)
+    pin_t = pin.transformed(t)
+    shapes(LayerPinRecN).insert(pin_t)
+    text = Text ("pin1", t)
+    shape = shapes(LayerPinRecN).insert(text)
+    shape.text_size = 0.4/dbu
+
+    t = Trans(Trans.R0, length,0)
+    pin = Path([Point(-pin_length/2, 0), Point(pin_length/2, 0)], w)
+    pin_t = pin.transformed(t)
+    shapes(LayerPinRecN).insert(pin_t)
+    text = Text ("pin2", t)
+    shape = shapes(LayerPinRecN).insert(text)
+    shape.text_size = 0.4/dbu
+    shape.text_halign = 2
+
+    # Compact model information
+    t = Trans(Trans.R0, 0, 0)
+    text = Text ('Lumerical_INTERCONNECT_library=Design kits/ebeam_v1.2', t)
+    shape = shapes(LayerDevRecN).insert(text)
+    shape.text_size = 0.1/dbu
+    t = Trans(Trans.R0, length/10, 0)
+    text = Text ('Component=NO_MODEL_AVAILABLE', t)
+    shape = shapes(LayerDevRecN).insert(text)
+    shape.text_size = 0.1/dbu
+    t = Trans(Trans.R0, length/9, -box_width*2)
+    text = Text \
+      ('Spice_param:length=%.3fu target_period=%.3fu grating_period=%.3fu wg_width=%.3fu duty=%.3f ' %\
+      (length/10, self.SWG_period, round(swg_p)*dbu, self.wg_width, self.duty), t )
+    shape = shapes(LayerDevRecN).insert(text)
+    shape.text_size = 0.1/dbu
+
+    # Create the device recognition layer -- make it 1 * wg_width away from the waveguides.
+    points = [pya.Point(0,0), pya.Point(length, 0)]
+    path = pya.Path(points,w)
+    path = pya.Path(points,w*3)
+    shapes(LayerDevRecN).insert(path.simple_polygon())
+    
+
+class SWG_bentWG(pya.PCellDeclarationHelper):
+
+    def __init__(self):
+
+      # Important: initialize the super class
+      super(SWG_bentWG, self).__init__()
+      TECHNOLOGY = get_technology_by_name('EBeam')
+
+      # declare the parameters
+      self.param("pitch", self.TypeDouble, "Period [um]", default = 0.2)
+      self.param("w", self.TypeDouble, "Waveguide Width [um]", default = 0.5)
+      self.param("r", self.TypeDouble, "Radius [um]", default = 5) # minimum radius is 5 um in TE
+      self.param("ff", self.TypeDouble, "Duty Cycle", default = 0.5)
+      self.param("angle", self.TypeDouble, "Angle", default = 180)
+      self.param("W_ratio", self.TypeDouble, "Lin/Lout", default = 1)
+      self.param("layer", self.TypeLayer, "Layer", default = TECHNOLOGY['Waveguide'])
+      self.param("pinrec", self.TypeLayer, "PinRec Layer", default = TECHNOLOGY['PinRec'])
+      self.param("devrec", self.TypeLayer, "DevRec Layer", default = TECHNOLOGY['DevRec'])
+  #    self.param("textl", self.TypeLayer, "Text Layer", default = LayerInfo(10, 0))
+
+    def display_text_impl(self):
+      # Provide a descriptive text for the cell
+      return "SWG_bentWG_%.3f" % \
+      (self.pitch)
+
+    def coerce_parameters_impl(self):
+      pass
+
+    def can_create_from_shape(self, layout, shape, layer):
+      return False
+
+    def produce_impl(self):
+      from SiEPIC._globals import PIN_LENGTH
+      from SiEPIC.extend import to_itype
+      
+      # This is the main part of the implementation: create the layout
+
+      # fetch the parameters
+      dbu = self.layout.dbu
+      ly = self.layout
+      shapes = self.cell.shapes
+      LayerSi = self.layer
+      LayerSiN = ly.layer(LayerSi)
+      LayerPinRecN = ly.layer(self.pinrec)
+      LayerDevRecN = ly.layer(self.devrec)
+
+      #variables
+      pitch = self.pitch
+      w = self.w
+      r = self.r
+      ff = self.ff # dc
+      angle = self.angle
+
+      W_ratio = self.W_ratio
+
+      
+      # set the deltaL of sT-shaped silicon pillar (deltaL = (Lin-Lout)/4) 
+      deltaL = (2*pitch*ff)*(W_ratio-1)/((1+W_ratio)*(4))
+      
+      if (r-w/2 &lt;= 0):
+        r = 5
+        print ('invalid radius, set r to default: 5')
+
+      #Calculate number of segments
+      s1 = pitch*ff #silicon
+      s2 = pitch-s1 #gap
+      
+      #calculate best radius
+      pi = math.pi
+      const = np.ceil(2*pi*r/(s1+s2))
+      #if doesn't divide evenly, replace r with best possible r
+   #   if ((2*pi*r)%(s1+s2) != 0):
+    #    r = const*(s1+s2)/(2*pi)
+     #   print('r adjusted to '+str(r)+'um to fit periods perfectly.')
+      
+      #theta1 = (s1/r)
+      #theta2 = (s2/r)
+      theta1 = np.arctan(s1/r) # angle of silicon compared to the origin point
+      theta2 = np.arctan(s2/r) # angle of the gap compared to the origin point
+      nSeg = int(np.floor(angle/(np.degrees(theta1)+np.degrees(theta2)))) #how many segments to have
+      si_first = True #for alternating between silicon and gap
+      j=0 #index of how many silicon thetas 
+      jj = 0 #index of how many gap thetas
+      ORDER = True #ordering of the coordinates for polygon drawing
+     
+      #xo = [(r-w/2)*np.cos(0)]
+      #yo = [(r-w/2)*np.sin(0)]
+      #xo.append((r+w/2)*np.cos(0))
+      #yo.append((r+w/2)*np.sin(0))
+      
+   #   xo = [(r-w/2)*np.cos(0)+deltaL*np.sin(0)] 
+   #   yo = [(r-w/2)*np.sin(0)-deltaL*np.cos(0)]
+    #  xo.append((r+w/2)*np.cos(0)-deltaL*np.sin(0))
+     # yo.append((r+w/2)*np.sin(0) +deltaL*np.cos(0))
+
+      
+
+  #    xo.append((r+w/2))
+   #   xo.append((r+w/2))   
+   #   xo.append((r-w/2)) 
+   #   xo.append((r-w/2))
+        
+   #   yo.append(-(s1-deltaL))
+   #   yo.append((s1-deltaL))
+   #   yo.append((s1+deltaL))
+   #   yo.append(-(s1+deltaL))
+
+      xo = []
+      yo = []
+      for i in range(0,nSeg+1):
+          theta = (i)*(s1+s2)*2*pi/(2*pi*r)
+
+          xo.append((r+w/2)*math.cos(theta)+(s1-deltaL)*(math.sin(theta))/2)
+          xo.append((r+w/2)*math.cos(theta)-(s1-deltaL)*(math.sin(theta))/2)   
+          xo.append((r-w/2)*math.cos(theta)-(s1+deltaL)*(math.sin(theta))/2) 
+          xo.append((r-w/2)*math.cos(theta)+(s1+deltaL)*(math.sin(theta))/2)
+          
+          yo.append((r+w/2)*math.sin(theta)-(s1-deltaL)*(math.cos(theta))/2+s1/2)
+          yo.append((r+w/2)*math.sin(theta)+(s1-deltaL)*(math.cos(theta))/2+s1/2)
+          yo.append((r-w/2)*math.sin(theta)+(s1+deltaL)*(math.cos(theta))/2+s1/2)
+          yo.append((r-w/2)*math.sin(theta)-(s1+deltaL)*(math.cos(theta))/2+s1/2)
+          
+          if len(xo) == 4:
+            dpts=[pya.DPoint(xo[i], yo[i]) for i in range(len(xo))]
+            dpolygon = DPolygon(dpts)
+            element = Polygon.from_dpoly(dpolygon*(1.0/dbu)) #*(1.0/dbu)
+            shapes(LayerSiN).insert(element)
+         #   print (yo[0])
+         #   print (yo[1])
+         #   print (yo[2])
+         #   print (yo[3])
+            xo = []
+            yo = []
+        
+  #    for i in range(0,nSeg*2):
+   #       if si_first:
+    #          j = j+1
+     #         si_first = not(si_first)
+      #    else:
+      #        jj=jj+1
+      #        si_first = not(si_first)
+      #    
+      #    if ORDER: 
+      #      xo.append((r+w/2)*np.cos(j*theta1+jj*theta2)+deltaL*np.sin(j*theta1+jj*theta2))
+      #      yo.append((r+w/2)*np.sin(j*theta1+jj*theta2)-deltaL*np.cos(j*theta1+jj*theta2))
+      #      xo.append((r-w/2)*np.cos(j*theta1+jj*theta2)-deltaL*np.sin(j*theta1+jj*theta2))
+      #      yo.append((r-w/2)*np.sin(j*theta1+jj*theta2)+deltaL*np.cos(j*theta1+jj*theta2))
+       #     ORDER = not(ORDER)
+       #   else:
+        #    xo.append((r-w/2)*np.cos(j*theta1+jj*theta2)+deltaL*np.sin(j*theta1+jj*theta2))
+         #   yo.append((r-w/2)*np.sin(j*theta1+jj*theta2)-deltaL*np.cos(j*theta1+jj*theta2))
+         #   xo.append((r+w/2)*np.cos(j*theta1+jj*theta2)-deltaL*np.sin(j*theta1+jj*theta2))
+         #   yo.append((r+w/2)*np.sin(j*theta1+jj*theta2)+deltaL*np.cos(j*theta1+jj*theta2))
+         #   ORDER = not(ORDER)    
+        
+
+
+     
+##############
+
+    # Create the pins on the waveguides, as short paths:
+      from SiEPIC._globals import PIN_LENGTH as pin_length
+    
+      w = to_itype(self.w,dbu)
+      r = to_itype(r,dbu)
+      s1 = to_itype(s1,dbu)
+      s2 = to_itype(s2,dbu)
+   #   angle = (s1+s2)*2*pi/(2*pi*r)*(nSeg)
+      angle = theta
+      print (angle)
+  
+      #Pin1
+      p1 = [Point(r,pin_length/2+s1/2), Point(r,-pin_length/2+s1/2)]
+      p1c = Point(r,0)
+      self.set_p1 = p1c
+      self.p1 = p1c
+      pin = Path(p1, w)
+      shapes(LayerPinRecN).insert(pin)
+      t = Trans(Trans.R0, r, 0)
+      text = Text ("pin1", t)
+      shape = shapes(LayerPinRecN).insert(text)
+      shape.text_size = 0.4/dbu
+
+    #  angle = angle/360*2*pi
+      #Pin2
+      p2 = [Point(-r, pin_length/2+s1/2), Point(-r,-pin_length/2+s1/2)]
+    #  p1c = Point(r*np.cos(angle),r*np.sin(angle))
+    #  self.set_p2 = p1c
+   #   self.p2 = p1c
+      pin = Path(p2, w)
+      shapes(LayerPinRecN).insert(pin)
+      t = Trans(Trans.R0, -r,0)
+      text = Text ("pin2", t)
+      shape = shapes(LayerPinRecN).insert(text)
+      shape.text_size = 0.4/dbu
+      
+      
+class SWG_waveguide(pya.PCellDeclarationHelper):
+
+  def __init__(self):
+
+# Important: initialize the super class
+    super(SWG_waveguide, self).__init__()
+    TECHNOLOGY = get_technology_by_name('EBeam')
+
+# declare the parameters
+    self.param("number_of_period", self.TypeInt, "Number of periods", default = 10) 
+    self.param("target_period", self.TypeDouble, "Target period (microns)", default = 0.200) 
+    self.param("wg_width", self.TypeDouble, "Waveguide width", default = 0.5) 
+    self.param("duty", self.TypeDouble, "Duty Cycle (0 to 1)", default = 0.7)
+    self.param("layer", self.TypeLayer, "Layer", default = TECHNOLOGY['Waveguide'])
+    self.param("pinrec", self.TypeLayer, "PinRec Layer", default = TECHNOLOGY['PinRec'])
+    self.param("devrec", self.TypeLayer, "DevRec Layer", default = TECHNOLOGY['DevRec'])
+# self.param("textl", self.TypeLayer, "Text Layer", default = LayerInfo(10, 0))
+
+  def display_text_impl(self):
+# Provide a descriptive text for the cell
+    return "SWG_waveguide_%s-%.3f-%.3f-%.3f" % \
+    (self.number_of_period, self.target_period, self.wg_width, self.duty)
+  def coerce_parameters_impl(self):
+    pass
+
+  def can_create_from_shape(self, layout, shape, layer):
+    return False
+  def produce_impl(self):
+# fetch the parameters
+    dbu = self.layout.dbu
+    ly = self.layout
+    shapes = self.cell.shapes
+
+    LayerSi = self.layer
+    LayerSiN = ly.layer(LayerSi)
+    #LayerSiSPN = ly.layer(LayerSiSP)
+    LayerPinRecN = ly.layer(self.pinrec)
+    LayerDevRecN = ly.layer(self.devrec)
+
+# Determine the period such that the waveguide length is as desired. Slight adjustment to period
+    N_boxes = int( self.number_of_period)
+    grating_period = self.target_period / dbu
+    print("N boxes: %s, grating_period: %s" % (N_boxes, grating_period) )
+# Draw the Bragg grating:
+    box_width = int(round(grating_period*self.duty))
+    w = self.wg_width / dbu
+    half_w = w/2
+    for i in range(0,N_boxes):
+     x = int(round((i * grating_period - box_width/2)))
+     box1 = Box(x, -half_w, x + box_width, half_w)
+     shapes(LayerSiN).insert(box1)
+# i = i + 1
+# x = int(round((i * grating_period)))
+# box1 = Box(x, -half_w, x + box_width, half_w)
+# shapes(LayerSiN).insert(box1)
+    length = (self.number_of_period-1)*grating_period 
+
+# Pins on the waveguide:
+    from SiEPIC._globals import PIN_LENGTH as pin_length
+# pin_length = box_width
+    t = Trans(Trans.R0, 0,0)
+    pin = Path([Point(pin_length/2, 0), Point(-pin_length/2, 0)], w)
+    pin_t = pin.transformed(t)
+    shapes(LayerPinRecN).insert(pin_t)
+    text = Text ("pin1", t)
+    shape = shapes(LayerPinRecN).insert(text)
+    shape.text_size = 0.4/dbu
+
+    t = Trans(Trans.R0, length,0)
+    pin = Path([Point(-pin_length/2, 0), Point(pin_length/2, 0)], w)
+    pin_t = pin.transformed(t)
+    shapes(LayerPinRecN).insert(pin_t)
+    text = Text ("pin2", t)
+    shape = shapes(LayerPinRecN).insert(text)
+    shape.text_size = 0.4/dbu
+
+# Compact model information
+    t = Trans(Trans.R0, 0, 0)
+    text = Text ('Lumerical_INTERCONNECT_library=Design kits/ebeam_v1.2', t)
+    shape = shapes(LayerDevRecN).insert(text)
+    shape.text_size = 0.1/dbu
+    t = Trans(Trans.R0, length/10, 0)
+    text = Text ('Component=NO_MODEL_AVAILABLE', t)
+    shape = shapes(LayerDevRecN).insert(text)
+    shape.text_size = 0.1/dbu
+    t = Trans(Trans.R0, length/9, -box_width*2)
+    text = Text \
+    ('Spice_param:length=%.3fu target_period=%.3fu grating_period=%.3fu wg_width=%.3fu duty=%.3f ' %\
+    (self.number_of_period, self.target_period, round(grating_period)*dbu, self.wg_width, self.duty), t )
+    shape = shapes(LayerDevRecN).insert(text)
+    shape.text_size = 0.1/dbu
+
+# Create the device recognition layer -- make it 1 * wg_width away from the waveguides.
+    points = [pya.Point(0,0), pya.Point(length, 0)]
+    path = pya.Path(points,w)
+    path = pya.Path(points,w*3)
+    shapes(LayerDevRecN).insert(path.simple_polygon())
+
+#################################################################################################################
+
+class SWG_PSBG(pya.PCellDeclarationHelper):
+
+  def __init__(self):
+
+# Important: initialize the super class
+    super(SWG_PSBG, self).__init__()
+    TECHNOLOGY = get_technology_by_name('EBeam')
+
+# declare the parameters
+    self.param("number_of_period", self.TypeInt, "Number of grating periods", default = 10) 
+    self.param("pitch_period_1", self.TypeDouble, "Pitch period 1(microns)", default = 0.200)
+    self.param("pitch_period_2", self.TypeDouble, "Pitch period 2(microns)", default = 0.200) 
+    self.param("wg_width_1", self.TypeDouble, "Waveguide width 1", default = 0.5) 
+    self.param("wg_width_2", self.TypeDouble, "Waveguide width 2", default = 0.7)
+    self.param("duty_1", self.TypeDouble, "Duty Cycle 1 (0 to 1)", default = 0.7)
+    self.param("duty_2", self.TypeDouble, "Duty Cycle 2 (0 to 1)", default = 0.7)
+    self.param("layer", self.TypeLayer, "Layer", default = TECHNOLOGY['Waveguide'])
+    self.param("pinrec", self.TypeLayer, "PinRec Layer", default = TECHNOLOGY['PinRec'])
+    self.param("devrec", self.TypeLayer, "DevRec Layer", default = TECHNOLOGY['DevRec'])
+# self.param("textl", self.TypeLayer, "Text Layer", default = LayerInfo(10, 0))
+
+  def display_text_impl(self):
+# Provide a descriptive text for the cell
+    return "SWG_waveguide_%s-%.3f-%.3f-%.3f-%.3f-%.3f-%.3f" % \
+    (self.number_of_period, self.pitch_period_1,self.pitch_period_2, self.wg_width_1, self.wg_width_2, self.duty_1, self.duty_2)
+  def coerce_parameters_impl(self):
+    pass
+
+  def can_create_from_shape(self, layout, shape, layer):
+    return False
+  def produce_impl(self):
+# fetch the parameters
+    dbu = self.layout.dbu
+    ly = self.layout
+    shapes = self.cell.shapes
+
+    LayerSi = self.layer
+    LayerSiN = ly.layer(LayerSi)
+    #LayerSiSPN = ly.layer(LayerSiSP)
+    LayerPinRecN = ly.layer(self.pinrec)
+    LayerDevRecN = ly.layer(self.devrec)
+
+# Determine the period such that the waveguide length is as desired. Slight adjustment to period
+    N_boxes = int( round (self.number_of_period))
+    grating_period_1 = (self.pitch_period_1 / dbu)
+    grating_period_2 = (self.pitch_period_2 / dbu)
+    print("N boxes: %s, grating_period_1: %s,  grating_period_2: %s" % (N_boxes, grating_period_1, grating_period_2) )
+# Draw the Bragg grating
+    box_width_1 = int(round(grating_period_1*self.duty_1))
+    box_width_2 =  int(round(grating_period_2*self.duty_2))
+    print("box_width_1: %s, box_width_2: %s" % (box_width_1, box_width_2) )
+# Draw the Bragg grating:
+    w_1 = self.wg_width_1 / dbu
+    w_2 = self.wg_width_2 / dbu
+    half_w_1 = w_1/2
+    half_w_2 = w_2/2
+    for i in range(0,N_boxes):
+    
+     x_1 = int (round(i * (grating_period_1+grating_period_2)))
+     
+     box1 = Box(x_1, -half_w_1, x_1 + box_width_1, half_w_1)
+     shapes(LayerSiN).insert(box1)
+
+     x_2 = int (round(i * (grating_period_1+grating_period_2) + grating_period_1))
+     box2 = Box(x_2, -half_w_2, x_2 + box_width_2, half_w_2)
+     shapes(LayerSiN).insert(box2)
+     
+
+     
+
+     
+     
+    for i in range(N_boxes, 2*N_boxes):
+
+     x_2 = int ( round(i * (grating_period_1+grating_period_2)+ grating_period_1))
+     box2 = Box(x_2, -half_w_1, x_2 + box_width_1, half_w_1)
+     shapes(LayerSiN).insert(box2)
+     
+    for i in range(N_boxes, 2*N_boxes): 
+     x_1 = int( round(i * (grating_period_1+grating_period_2)))
+     
+     box1 = Box(x_1, -half_w_2, x_1 + box_width_2, half_w_2)
+     shapes(LayerSiN).insert(box1)
+    print(x_1+box_width_1)
+# i = i + 1
+# x = int(round((i * grating_period)))
+# box1 = Box(x, -half_w, x + box_width, half_w)
+# shapes(LayerSiN).insert(box1)
+    length = self.number_of_period*(grating_period_1 + grating_period_2)*2
+
+# Pins on the waveguide:
+    from SiEPIC._globals import PIN_LENGTH as pin_length
+# pin_length = box_width
+    t = Trans(Trans.R0, box_width_1/2,0)
+    pin = Path([Point(pin_length/2, 0), Point(-pin_length/2, 0)], w_1)
+    pin_t = pin.transformed(t)
+    shapes(LayerPinRecN).insert(pin_t)
+    text = Text ("pin1", t)
+    shape = shapes(LayerPinRecN).insert(text)
+    shape.text_size = 0.4/dbu
+
+    t = Trans(Trans.R0, length-grating_period_1+box_width_1/2+1,0)
+    pin = Path([Point(-pin_length/2, 0), Point(pin_length/2, 0)], w_1)
+    pin_t = pin.transformed(t)
+    shapes(LayerPinRecN).insert(pin_t)
+    text = Text ("pin2", t)
+    shape = shapes(LayerPinRecN).insert(text)
+    shape.text_size = 0.4/dbu
+
+# Compact model information
+ #   t = Trans(Trans.R0, 0, 0)
+ #   text = Text ('Lumerical_INTERCONNECT_library=Design kits/ebeam_v1.2', t)
+ #   shape = shapes(LayerDevRecN).insert(text)
+ #   shape.text_size = 0.1/dbu
+ #   t = Trans(Trans.R0, length/10, 0)
+ #   text = Text ('Component=NO_MODEL_AVAILABLE', t)
+ #   shape = shapes(LayerDevRecN).insert(text)
+ #   shape.text_size = 0.1/dbu
+    t = Trans(Trans.R0, length/2, -box_width_2*2)
+    text = Text \
+    ('Spice_param:Number of Grating periods=%.3f width_1=%.3f width_2=%.3f duty_1=%.3f duty_2=%.3f ' %\
+    (self.number_of_period, self.wg_width_1, self.wg_width_2, self.duty_1, self.duty_2), t )
+    shape = shapes(LayerDevRecN).insert(text)
+    shape.text_size = 0.1/dbu
+
+# Create the device recognition layer -- make it 1 * wg_width away from the waveguides.
+    points = [pya.Point(0,0), pya.Point(length, 0)]
+    path = pya.Path(points,w_2)
+    path = pya.Path(points,w_2*3)
+    shapes(LayerDevRecN).insert(path.simple_polygon())
+
+
+###############################################################################################
+
+class SWG_PSBG_wing(pya.PCellDeclarationHelper):
+
+  def __init__(self):
+
+# Important: initialize the super class
+    super(SWG_PSBG_wing, self).__init__()
+    TECHNOLOGY = get_technology_by_name('EBeam')
+
+# declare the parameters
+    self.param("number_of_period", self.TypeInt, "Number of grating periods", default = 10) 
+    self.param("pitch_period", self.TypeDouble, "Pitch period(microns)", default = 0.200)
+    self.param("wg_width", self.TypeDouble, "Waveguide width", default = 0.5) 
+    self.param("wing_width", self.TypeDouble, "Box width", default = 0.5)
+    self.param("duty", self.TypeDouble, "Duty Cycle (0 to 1)", default = 0.7)
+    self.param("gap_1", self.TypeDouble, "gap 1", default = 0.1)
+    self.param("gap_2", self.TypeDouble, "gap 2", default = 0.1)
+    self.param("layer", self.TypeLayer, "Layer", default = TECHNOLOGY['Waveguide'])
+    self.param("pinrec", self.TypeLayer, "PinRec Layer", default = TECHNOLOGY['PinRec'])
+    self.param("devrec", self.TypeLayer, "DevRec Layer", default = TECHNOLOGY['DevRec'])
+# self.param("textl", self.TypeLayer, "Text Layer", default = LayerInfo(10, 0))
+
+  def display_text_impl(self):
+# Provide a descriptive text for the cell
+    return "SWG_waveguide_%s-%.3f-%.3f-%.3f-%.3f-%.3f-%.3f" % \
+    (self.number_of_period, self.pitch_period,self.wg_width, self.wing_width, self.duty, self.gap_1, self.gap_2)
+  def coerce_parameters_impl(self):
+    pass
+
+  def can_create_from_shape(self, layout, shape, layer):
+    return False
+  def produce_impl(self):
+# fetch the parameters
+    dbu = self.layout.dbu
+    ly = self.layout
+    shapes = self.cell.shapes
+
+    LayerSi = self.layer
+    LayerSiN = ly.layer(LayerSi)
+    #LayerSiSPN = ly.layer(LayerSiSP)
+    LayerPinRecN = ly.layer(self.pinrec)
+    LayerDevRecN = ly.layer(self.devrec)
+
+# Determine the period such that the waveguide length is as desired. Slight adjustment to period
+    N_boxes = int( round (self.number_of_period))
+    grating_period = (self.pitch_period / dbu)
+    wing_width = (self.wing_width / dbu)
+    half_wing = wing_width / 2
+    gap_1 = self.gap_1 / dbu
+    gap_2 = self.gap_2 / dbu
+#    print("N boxes: %s, grating_period_1: %s,  grating_period_2: %s" % (N_boxes, grating_period_1, grating_period_2) )
+# Draw the Bragg grating
+    box_width = int(round(grating_period*self.duty))
+#    print("box_width_1: %s, box_width_2: %s" % (box_width_1, box_width_2) )
+# Draw the Bragg grating:
+    w = self.wg_width / dbu
+    half_w = w/2
+    
+    wing_p_1 = gap_1 + half_w + half_wing
+    wing_p_2 = gap_2 + half_w + half_wing
+
+    for i in range(0,N_boxes):
+    
+     x = int (round(i * (2*grating_period)))
+     
+     box = Box(x, -half_w, x + box_width, half_w)
+     shapes(LayerSiN).insert(box)
+     
+     x = int (round(i * (2*grating_period)+ grating_period))
+     
+     box = Box(x, -half_w, x + box_width, half_w)
+     shapes(LayerSiN).insert(box)
+
+     x_wing_1 = int (round(i * (grating_period+grating_period)))
+     box_1_r = Box(x_wing_1, wing_p_1 - half_wing, x_wing_1 + wing_width, wing_p_1 + half_wing)
+     box_1_l = Box(x_wing_1, -wing_p_1 + half_wing, x_wing_1 + wing_width, -wing_p_1 - half_wing)
+     shapes(LayerSiN).insert(box_1_r)
+     shapes(LayerSiN).insert(box_1_l)
+     
+     x_wing_2 = int (round(i * (grating_period+grating_period) + grating_period))
+     box_2_r = Box(x_wing_2, wing_p_2 - half_wing, x_wing_2 + wing_width, wing_p_2 + half_wing)
+     box_2_l = Box(x_wing_2, -wing_p_2 + half_wing, x_wing_2 + wing_width, -wing_p_2 - half_wing)
+     shapes(LayerSiN).insert(box_2_r)
+     shapes(LayerSiN).insert(box_2_l)
+     
+
+    for i in range(N_boxes, 2*N_boxes):
+    
+     x = int (round(i * (2*grating_period)))
+     
+     box = Box(x, -half_w, x + box_width, half_w)
+     shapes(LayerSiN).insert(box)
+    
+     x = int (round(i * (2*grating_period)+ grating_period))
+     
+     box = Box(x, -half_w, x + box_width, half_w)
+     shapes(LayerSiN).insert(box)
+
+     x_wing_1 = int (round(i * (grating_period+grating_period) + grating_period))
+     box_1_r = Box(x_wing_1, wing_p_1 - half_wing, x_wing_1 + wing_width, wing_p_1 + half_wing)
+     box_1_l = Box(x_wing_1, -wing_p_1 + half_wing, x_wing_1 + wing_width, -wing_p_1 - half_wing)
+     shapes(LayerSiN).insert(box_1_r)
+     shapes(LayerSiN).insert(box_1_l)
+     
+     x_wing_2 = int (round(i * (grating_period+grating_period)))
+     box_2_r = Box(x_wing_2, wing_p_2 - half_wing, x_wing_2 + wing_width, wing_p_2 + half_wing)
+     box_2_l = Box(x_wing_2, -wing_p_2 + half_wing, x_wing_2 + wing_width, -wing_p_2 - half_wing)
+     shapes(LayerSiN).insert(box_2_r)
+     shapes(LayerSiN).insert(box_2_l)     
+     
+# i = i + 1
+# x = int(round((i * grating_period)))
+# box1 = Box(x, -half_w, x + box_width, half_w)
+# shapes(LayerSiN).insert(box1)
+    length = self.number_of_period*(grating_period)*4
+
+# Pins on the waveguide:
+    from SiEPIC._globals import PIN_LENGTH as pin_length
+# pin_length = box_width
+    t = Trans(Trans.R0, box_width/2,0)
+    pin = Path([Point(pin_length/2, 0), Point(-pin_length/2, 0)], w)
+    pin_t = pin.transformed(t)
+    shapes(LayerPinRecN).insert(pin_t)
+    text = Text ("pin1", t)
+    shape = shapes(LayerPinRecN).insert(text)
+    shape.text_size = 0.4/dbu
+
+    t = Trans(Trans.R0, length-grating_period+box_width/2+1,0)
+    pin = Path([Point(-pin_length/2, 0), Point(pin_length/2, 0)], w)
+    pin_t = pin.transformed(t)
+    shapes(LayerPinRecN).insert(pin_t)
+    text = Text ("pin2", t)
+    shape = shapes(LayerPinRecN).insert(text)
+    shape.text_size = 0.4/dbu
+
+# Compact model information
+ #   t = Trans(Trans.R0, 0, 0)
+ #   text = Text ('Lumerical_INTERCONNECT_library=Design kits/ebeam_v1.2', t)
+ #   shape = shapes(LayerDevRecN).insert(text)
+ #   shape.text_size = 0.1/dbu
+ #   t = Trans(Trans.R0, length/10, 0)
+ #   text = Text ('Component=NO_MODEL_AVAILABLE', t)
+ #   shape = shapes(LayerDevRecN).insert(text)
+ #   shape.text_size = 0.1/dbu
+    t = Trans(Trans.R0, length/2, -box_width*2)
+    text = Text \
+    ('Spice_param:Number of Grating periods=%.3f width_1=%.3f width_2=%.3f duty_1=%.3f duty_2=%.3f ' %\
+    (self.number_of_period, self.wg_width, self.duty, self.gap_1, self.gap_2), t )
+    shape = shapes(LayerDevRecN).insert(text)
+    shape.text_size = 0.1/dbu
+
+# Create the device recognition layer -- make it 1 * wg_width away from the waveguides.
+    points = [pya.Point(0,0), pya.Point(length, 0)]
+    path = pya.Path(points,w)
+    path = pya.Path(points,w*3)
+    shapes(LayerDevRecN).insert(path.simple_polygon())
+
+
+#################################################################################
+
+class Chirp_Bragg_Grating(pya.PCellDeclarationHelper):
+
+  def __init__(self):
+
+# Important: initialize the super class
+    super(Chirp_Bragg_Grating, self).__init__()
+    TECHNOLOGY = get_technology_by_name('EBeam')
+
+# declare the parameters
+    self.param("number_of_period", self.TypeInt, "Number of grating periods", default = 10) 
+    self.param("pitch_period", self.TypeDouble, "Pitch period(microns)", default = 0.200)
+    self.param("wg_width_1_start", self.TypeDouble, "Waveguide width 1 start", default = 0.5) 
+    self.param("wg_width_1_end", self.TypeDouble, "Waveguide width 1 end", default = 0.55) 
+    self.param("wg_width_2_start", self.TypeDouble, "Waveguide width 2 start", default = 0.52) 
+    self.param("wg_width_2_end", self.TypeDouble, "Waveguide width 2 end", default = 0.57) 
+
+
+    self.param("layer", self.TypeLayer, "Layer", default = TECHNOLOGY['Waveguide'])
+    self.param("pinrec", self.TypeLayer, "PinRec Layer", default = TECHNOLOGY['PinRec'])
+    self.param("devrec", self.TypeLayer, "DevRec Layer", default = TECHNOLOGY['DevRec'])
+# self.param("textl", self.TypeLayer, "Text Layer", default = LayerInfo(10, 0))
+
+  def display_text_impl(self):
+# Provide a descriptive text for the cell
+    return "SWG_waveguide_%s-%.3f-%.3f-%.3f-%.3f-%.3f" % \
+    (self.number_of_period, self.pitch_period,self.wg_width_1_start, self.wg_width_1_end, self.wg_width_2_start, self.wg_width_2_end)
+  def coerce_parameters_impl(self):
+    pass
+
+  def can_create_from_shape(self, layout, shape, layer):
+    return False
+  def produce_impl(self):
+# fetch the parameters
+    dbu = self.layout.dbu
+    ly = self.layout
+    shapes = self.cell.shapes
+
+    LayerSi = self.layer
+    LayerSiN = ly.layer(LayerSi)
+    #LayerSiSPN = ly.layer(LayerSiSP)
+    LayerPinRecN = ly.layer(self.pinrec)
+    LayerDevRecN = ly.layer(self.devrec)
+
+# Determine the period such that the waveguide length is as desired. Slight adjustment to period
+    N_boxes = int( round (self.number_of_period))
+    grating_period = (self.pitch_period / dbu)
+    wg_width_1_start = (self.wg_width_1_start / dbu)
+    wg_width_1_end = (self.wg_width_1_end / dbu)
+    wg_width_2_start = (self.wg_width_2_start / dbu)
+    wg_width_2_end = (self.wg_width_2_end / dbu)
+    
+    wg_width_1 = np.linspace (wg_width_1_start, wg_width_1_end, N_boxes)
+    wg_width_2 = np.linspace (wg_width_2_start, wg_width_2_end, N_boxes)
+
+#    print("N boxes: %s, grating_period_1: %s,  grating_period_2: %s" % (N_boxes, grating_period_1, grating_period_2) )
+# Draw the Bragg grating
+
+#    print("box_width_1: %s, box_width_2: %s" % (box_width_1, box_width_2) )
+# Draw the Bragg grating:
+
+    i = 0
+    for wg_width in wg_width_1:
+     
+     x = int (round(i * (2*grating_period)))
+     i = i+1
+     
+     box = Box(x, -wg_width / 2, x + grating_period, wg_width / 2)
+     shapes(LayerSiN).insert(box)
+     
+
+    k = 0
+    for wg_width in wg_width_2:
+     
+     x = int (round(k * (2*grating_period)+grating_period))
+     k = k+1
+     
+     box = Box(x, -wg_width / 2, x + grating_period, wg_width / 2)
+     shapes(LayerSiN).insert(box)
+     
+# i = i + 1
+# x = int(round((i * grating_period)))
+# box1 = Box(x, -half_w, x + box_width, half_w)
+# shapes(LayerSiN).insert(box1)
+    length = self.number_of_period*(grating_period)*2
+
+# Pins on the waveguide:
+    from SiEPIC._globals import PIN_LENGTH as pin_length
+# pin_length = box_width
+    t = Trans(Trans.R0, 0,0)
+    pin = Path([Point(pin_length/2, 0), Point(-pin_length/2, 0)], wg_width_1_start)
+    pin_t = pin.transformed(t)
+    shapes(LayerPinRecN).insert(pin_t)
+    text = Text ("pin1", t)
+    shape = shapes(LayerPinRecN).insert(text)
+    shape.text_size = 0.4/dbu
+
+    t = Trans(Trans.R0, length,0)
+    pin = Path([Point(-pin_length/2, 0), Point(pin_length/2, 0)], wg_width_2_end)
+    pin_t = pin.transformed(t)
+    shapes(LayerPinRecN).insert(pin_t)
+    text = Text ("pin2", t)
+    shape = shapes(LayerPinRecN).insert(text)
+    shape.text_size = 0.4/dbu
+
+# Compact model information
+ #   t = Trans(Trans.R0, 0, 0)
+ #   text = Text ('Lumerical_INTERCONNECT_library=Design kits/ebeam_v1.2', t)
+ #   shape = shapes(LayerDevRecN).insert(text)
+ #   shape.text_size = 0.1/dbu
+ #   t = Trans(Trans.R0, length/10, 0)
+ #   text = Text ('Component=NO_MODEL_AVAILABLE', t)
+ #   shape = shapes(LayerDevRecN).insert(text)
+ #   shape.text_size = 0.1/dbu
+    t = Trans(Trans.R0, length/2, -grating_period*2)
+    text = Text \
+    ('Spice_param:Number of Grating periods=%.3f width_1=%.3f width_2=%.3f duty_1=%.3f duty_2=%.3f ' %\
+    (self.number_of_period, self.wg_width_1_start, self.wg_width_1_end, self.wg_width_2_start, self.wg_width_2_end), t )
+    shape = shapes(LayerDevRecN).insert(text)
+    shape.text_size = 0.1/dbu
+
+# Create the device recognition layer -- make it 1 * wg_width away from the waveguides.
+    points = [pya.Point(0,0), pya.Point(length, 0)]
+    path = pya.Path(points, wg_width_2_end)
+    path = pya.Path(points, wg_width_2_end*3)
+    shapes(LayerDevRecN).insert(path.simple_polygon())
+
+
+
+
+#################################################################################
+
+class SWG_Bragg_Grating(pya.PCellDeclarationHelper):
+
+  def __init__(self):
+
+# Important: initialize the super class
+    super(SWG_Bragg_Grating, self).__init__()
+    TECHNOLOGY = get_technology_by_name('EBeam')
+
+# declare the parameters
+    self.param("number_of_period", self.TypeInt, "Number of grating periods", default = 10) 
+    self.param("pitch_period_1", self.TypeDouble, "Pitch period 1(microns)", default = 0.200)
+    self.param("pitch_period_2", self.TypeDouble, "Pitch period 2(microns)", default = 0.200) 
+    self.param("wg_width_1", self.TypeDouble, "Waveguide width 1", default = 0.5) 
+    self.param("wg_width_2", self.TypeDouble, "Waveguide width 2", default = 0.7)
+    self.param("duty_1", self.TypeDouble, "Duty Cycle 1 (0 to 1)", default = 0.7)
+    self.param("duty_2", self.TypeDouble, "Duty Cycle 2 (0 to 1)", default = 0.7)
+    self.param("layer", self.TypeLayer, "Layer", default = TECHNOLOGY['Waveguide'])
+    self.param("pinrec", self.TypeLayer, "PinRec Layer", default = TECHNOLOGY['PinRec'])
+    self.param("devrec", self.TypeLayer, "DevRec Layer", default = TECHNOLOGY['DevRec'])
+# self.param("textl", self.TypeLayer, "Text Layer", default = LayerInfo(10, 0))
+
+  def display_text_impl(self):
+# Provide a descriptive text for the cell
+    return "SWG_waveguide_%s-%.3f-%.3f-%.3f-%.3f-%.3f-%.3f" % \
+    (self.number_of_period, self.pitch_period_1,self.pitch_period_2, self.wg_width_1, self.wg_width_2, self.duty_1, self.duty_2)
+  def coerce_parameters_impl(self):
+    pass
+
+  def can_create_from_shape(self, layout, shape, layer):
+    return False
+  def produce_impl(self):
+# fetch the parameters
+    dbu = self.layout.dbu
+    ly = self.layout
+    shapes = self.cell.shapes
+
+    LayerSi = self.layer
+    LayerSiN = ly.layer(LayerSi)
+    #LayerSiSPN = ly.layer(LayerSiSP)
+    LayerPinRecN = ly.layer(self.pinrec)
+    LayerDevRecN = ly.layer(self.devrec)
+
+# Determine the period such that the waveguide length is as desired. Slight adjustment to period
+    N_boxes = int( round (self.number_of_period))
+    grating_period_1 = (self.pitch_period_1 / dbu)
+    grating_period_2 = (self.pitch_period_2 / dbu)
+    print("N boxes: %s, grating_period_1: %s,  grating_period_2: %s" % (N_boxes, grating_period_1, grating_period_2) )
+# Draw the Bragg grating
+    box_width_1 = int(round(grating_period_1*self.duty_1))
+    box_width_2 =  int(round(grating_period_2*self.duty_2))
+    print("box_width_1: %s, box_width_2: %s" % (box_width_1, box_width_2) )
+# Draw the Bragg grating:
+    w_1 = self.wg_width_1 / dbu
+    w_2 = self.wg_width_2 / dbu
+    half_w_1 = w_1/2
+    half_w_2 = w_2/2
+    for i in range(0,N_boxes):
+    
+     x_1 = int (round(i * (grating_period_1+grating_period_2)))
+     
+     box1 = Box(x_1, -half_w_1, x_1 + box_width_1, half_w_1)
+     shapes(LayerSiN).insert(box1)
+
+     x_2 = int (round(i * (grating_period_1+grating_period_2) + grating_period_1))
+     box2 = Box(x_2, -half_w_2, x_2 + box_width_2, half_w_2)
+     shapes(LayerSiN).insert(box2)
+     
+
+     
+
+# i = i + 1
+# x = int(round((i * grating_period)))
+# box1 = Box(x, -half_w, x + box_width, half_w)
+# shapes(LayerSiN).insert(box1)
+    length = self.number_of_period*(grating_period_1 + grating_period_2)
+
+# Pins on the waveguide:
+    from SiEPIC._globals import PIN_LENGTH as pin_length
+# pin_length = box_width
+    t = Trans(Trans.R0, box_width_1/2,0)
+    pin = Path([Point(pin_length/2, 0), Point(-pin_length/2, 0)], w_1)
+    pin_t = pin.transformed(t)
+    shapes(LayerPinRecN).insert(pin_t)
+    text = Text ("pin1", t)
+    shape = shapes(LayerPinRecN).insert(text)
+    shape.text_size = 0.4/dbu
+
+    t = Trans(Trans.R0, length-grating_period_1+box_width_1/2+1,0)
+    pin = Path([Point(-pin_length/2, 0), Point(pin_length/2, 0)], w_1)
+    pin_t = pin.transformed(t)
+    shapes(LayerPinRecN).insert(pin_t)
+    text = Text ("pin2", t)
+    shape = shapes(LayerPinRecN).insert(text)
+    shape.text_size = 0.4/dbu
+
+# Compact model information
+ #   t = Trans(Trans.R0, 0, 0)
+ #   text = Text ('Lumerical_INTERCONNECT_library=Design kits/ebeam_v1.2', t)
+ #   shape = shapes(LayerDevRecN).insert(text)
+ #   shape.text_size = 0.1/dbu
+ #   t = Trans(Trans.R0, length/10, 0)
+ #   text = Text ('Component=NO_MODEL_AVAILABLE', t)
+ #   shape = shapes(LayerDevRecN).insert(text)
+ #   shape.text_size = 0.1/dbu
+    t = Trans(Trans.R0, length/2, -box_width_2*2)
+    text = Text \
+    ('Spice_param:Number of Grating periods=%.3f width_1=%.3f width_2=%.3f duty_1=%.3f duty_2=%.3f ' %\
+    (self.number_of_period, self.wg_width_1, self.wg_width_2, self.duty_1, self.duty_2), t )
+    shape = shapes(LayerDevRecN).insert(text)
+    shape.text_size = 0.1/dbu
+
+# Create the device recognition layer -- make it 1 * wg_width away from the waveguides.
+    points = [pya.Point(0,0), pya.Point(length, 0)]
+    path = pya.Path(points,w_2)
+    path = pya.Path(points,w_2*3)
+    shapes(LayerDevRecN).insert(path.simple_polygon())
+
+
+
+class MyLib(pya.Library):
+  """
+  The library where we will put the PCell into
+  """
+
+  def __init__(self):
+
+    # Set the description
+    self.description = "My First Library"
+
+    # Create the PCell declarations
+
+    self.layout().register_pcell("Chirped_SWG_BG_wing", Chirped_SWG_BG_wing())
+    self.layout().register_pcell("Tilted_SWG_BG_wing", Tilted_SWG_BG_wing())
+    self.layout().register_pcell("Tilted_SWG_to_strip_waveguide", Tilted_SWG_to_strip_waveguide())
+    self.layout().register_pcell("SWG_bentWG", SWG_bentWG())
+    self.layout().register_pcell("SWG_waveguide", SWG_waveguide())
+    self.layout().register_pcell("SWG_PSBG", SWG_PSBG())
+    self.layout().register_pcell("SWG_PSBG_wing", SWG_PSBG_wing())
+    self.layout().register_pcell("Chirp_Bragg_Grating", Chirp_Bragg_Grating())
+    self.layout().register_pcell("SWG_Bragg_Grating", SWG_Bragg_Grating())
+    # That would be the place to put in more PCells ...
+
+    # Register us with the name "MyLib".
+    # If a library with that name already existed, it will be replaced then.
+    self.register("MyLib")
+
+
+# Instantiate and register the library
+MyLib()
+
+</text>
+</klayout-macro>
